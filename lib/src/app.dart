@@ -20,7 +20,6 @@ import 'reducers/dna_ends_move_reducer.dart';
 import 'reducers/potential_crossover_reducer.dart';
 import 'state/app_state.dart';
 import 'state/selection_box.dart';
-import 'state/undo_redo.dart';
 import 'reducers/selection_reducer.dart';
 import 'view/design.dart';
 import 'view/view.dart';
@@ -31,14 +30,14 @@ import 'util.dart' as util;
 import 'actions/actions.dart' as actions;
 import 'dna_sequence_constants.dart';
 
-//import 'test.dart';
+import 'test.dart' as test;
 //import 'constants.dart' as constants;
 
 // global variable for whole program
 App app = App();
 
-//const USE_REDUX_DEV_TOOLS = false;
-const USE_REDUX_DEV_TOOLS = true;
+const USE_REDUX_DEV_TOOLS = false;
+//const USE_REDUX_DEV_TOOLS = true;
 
 const RUN_TEST_CODE_INSTEAD_OF_APP = false;
 //const RUN_TEST_CODE_INSTEAD_OF_APP = true;
@@ -47,8 +46,7 @@ const RUN_TEST_CODE_INSTEAD_OF_APP = false;
 const DEBUG_SELECT = false;
 
 test_stuff() async {
-  print("m13p7249 rotated 5587: ${DNASequencePredefined.dna_sequence_by_name('M13p7249')}");
-  print("m13p7249 unrotated: ${DNASequencePredefined.dna_sequence_by_name('M13p7249', 0)}");
+  test.run();
 }
 
 /// One instance of this class contains the global variables needed by all parts of the app.

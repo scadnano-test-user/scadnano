@@ -6,6 +6,8 @@ import 'package:built_collection/built_collection.dart';
 import 'package:built_value/standard_json_plugin.dart';
 import 'package:color/color.dart';
 
+
+import 'state/substrand.dart'; // although greyed out, this is needed for built_value
 import 'actions/actions.dart';
 import 'dna_sequence_constants.dart';
 import 'state/context_menu.dart';
@@ -23,7 +25,6 @@ import 'state/selectable.dart';
 import 'state/app_ui_state.dart';
 import 'state/strand_creation.dart';
 import 'state/strands_move.dart';
-import 'state/substrand.dart';
 import 'state/grid.dart';
 import 'state/helix.dart';
 import 'state/idt_fields.dart';
@@ -37,10 +38,13 @@ import 'state/selection_box.dart';
 import 'state/select_mode_state.dart';
 import 'state/strand.dart';
 import 'state/crossover.dart';
+import 'test.dart';
 
 part 'serializers.g.dart';
 
 @SerializersFor([
+  Parent,
+  Child,
   SelectModeToggle,
   SelectModesSet,
   SelectionBox,

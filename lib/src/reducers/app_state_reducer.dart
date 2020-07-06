@@ -1,4 +1,5 @@
 import 'package:redux/redux.dart';
+import 'package:scadnano/src/state/app_ui_state.dart';
 
 import 'app_ui_state_reducer.dart';
 import 'dna_design_reducer.dart';
@@ -30,6 +31,19 @@ AppState app_state_reducer(AppState state, action) {
   if (modify_undo_redo_stacks) {
     state = undoable_action_reducer(state, action);
   }
+
+  //TODO: below was for debugging new built_value allocation optimization
+//  update_state_debug(AppStateBuilder m) {
+//    m.dna_design = dna_design_reducer(state.dna_design, action)?.toBuilder();
+//    AppUIState new_ui_state = ui_state_local_reducer(state.ui_state, action);
+//    AppUIStateBuilder new_ui_state_builder = new_ui_state.toBuilder();
+//    m.ui_state = new_ui_state_builder;
+////    AppUIStateBuilder current_app_ui_state_builder = m.ui_state;
+////    current_app_ui_state_builder.replace(new_ui_state);
+//    m.error_message = TypedReducer<String, actions.ErrorMessageSet>(error_message_reducer)(state.error_message, action);
+//    m.editor_content = editor_content_reducer(state.editor_content, action);
+//  }
+//  state = state.rebuild(update_state_debug);
 
   // "local" reducers can operate on one slice of the state and need only read that same slice
   state = state.rebuild((m) => m
