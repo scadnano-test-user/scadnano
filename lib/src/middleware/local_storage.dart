@@ -108,6 +108,22 @@ local_storage_middleware(Store<AppState> store, dynamic action, NextDispatcher n
   var state_before = store.state;
   next(action);
   var state_after = store.state;
+
+  Stopwatch stopwatch = Stopwatch()..start();
+  bool designs_equal = state_before.dna_design == state_after.dna_design;
+  stopwatch.stop();
+  int microseconds_equal = stopwatch.elapsedMicroseconds;
+
+  stopwatch..reset()..start();
+  bool designs_identical = identical(state_before.dna_design, state_after.dna_design);
+  stopwatch.stop();
+  int microseconds_identical = stopwatch.elapsedMicroseconds;
+
+  print('==? ${designs_equal ? "Y" : "N"}  identical? ${designs_identical ? "Y" : "N"}');
+  print("time to test for ==:        ${microseconds_equal} us");
+  print("time to test for identical: ${microseconds_identical} us");
+  print('');
+  
   if (action is actions.AppUIStateStorableAction) {
     save_async(state_after, [Storable.app_ui_state_storables]);
   }
