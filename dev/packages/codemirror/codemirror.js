@@ -1843,7 +1843,7 @@
       }
     }
     builder.trailingSpace = displayText.charCodeAt(text.length - 1) == 32;
-    if (style || startStyle || endStyle || mustWrap || css) {
+    if (style || startStyle || endStyle || mustWrap || css || attributes) {
       var fullStyle = style || "";
       if (startStyle) { fullStyle += startStyle; }
       if (endStyle) { fullStyle += endStyle; }
@@ -3278,8 +3278,10 @@
     var on = true;
     display.cursorDiv.style.visibility = "";
     if (cm.options.cursorBlinkRate > 0)
-      { display.blinker = setInterval(function () { return display.cursorDiv.style.visibility = (on = !on) ? "" : "hidden"; },
-        cm.options.cursorBlinkRate); }
+      { display.blinker = setInterval(function () {
+        if (!cm.hasFocus()) { onBlur(cm); }
+        display.cursorDiv.style.visibility = (on = !on) ? "" : "hidden";
+      }, cm.options.cursorBlinkRate); }
     else if (cm.options.cursorBlinkRate < 0)
       { display.cursorDiv.style.visibility = "hidden"; }
   }
@@ -6643,7 +6645,7 @@
     46: "Delete", 59: ";", 61: "=", 91: "Mod", 92: "Mod", 93: "Mod",
     106: "*", 107: "=", 109: "-", 110: ".", 111: "/", 145: "ScrollLock",
     173: "-", 186: ";", 187: "=", 188: ",", 189: "-", 190: ".", 191: "/", 192: "`", 219: "[", 220: "\\",
-    221: "]", 222: "'", 63232: "Up", 63233: "Down", 63234: "Left", 63235: "Right", 63272: "Delete",
+    221: "]", 222: "'", 224: "Mod", 63232: "Up", 63233: "Down", 63234: "Left", 63235: "Right", 63272: "Delete",
     63273: "Home", 63275: "End", 63276: "PageUp", 63277: "PageDown", 63302: "Insert"
   };
 
@@ -6778,7 +6780,7 @@
     var base = name;
     if (event.altKey && base != "Alt") { name = "Alt-" + name; }
     if ((flipCtrlCmd ? event.metaKey : event.ctrlKey) && base != "Ctrl") { name = "Ctrl-" + name; }
-    if ((flipCtrlCmd ? event.ctrlKey : event.metaKey) && base != "Cmd") { name = "Cmd-" + name; }
+    if ((flipCtrlCmd ? event.ctrlKey : event.metaKey) && base != "Mod") { name = "Cmd-" + name; }
     if (!noShift && event.shiftKey && base != "Shift") { name = "Shift-" + name; }
     return name
   }
@@ -7004,7 +7006,7 @@
     goGroupRight: function (cm) { return cm.moveH(1, "group"); },
     goGroupLeft: function (cm) { return cm.moveH(-1, "group"); },
     goWordRight: function (cm) { return cm.moveH(1, "word"); },
-    delCharBefore: function (cm) { return cm.deleteH(-1, "char"); },
+    delCharBefore: function (cm) { return cm.deleteH(-1, "codepoint"); },
     delCharAfter: function (cm) { return cm.deleteH(1, "char"); },
     delWordBefore: function (cm) { return cm.deleteH(-1, "word"); },
     delWordAfter: function (cm) { return cm.deleteH(1, "word"); },
@@ -7879,7 +7881,9 @@
     attachDoc(this, doc);
 
     if ((options.autofocus && !mobile) || this.hasFocus())
-      { setTimeout(bind(onFocus, this), 20); }
+      { setTimeout(function () {
+        if (this$1.hasFocus() && !this$1.state.focused) { onFocus(this$1); }
+      }, 20); }
     else
       { onBlur(this); }
 
@@ -8642,14 +8646,14 @@
   }
 
   // Used for horizontal relative motion. Dir is -1 or 1 (left or
-  // right), unit can be "char", "column" (like char, but doesn't
-  // cross line boundaries), "word" (across next word), or "group" (to
-  // the start of next group of word or non-word-non-whitespace
-  // chars). The visually param controls whether, in right-to-left
-  // text, direction 1 means to move towards the next index in the
-  // string, or towards the character to the right of the current
-  // position. The resulting position will have a hitSide=true
-  // property if it reached the end of the document.
+  // right), unit can be "codepoint", "char", "column" (like char, but
+  // doesn't cross line boundaries), "word" (across next word), or
+  // "group" (to the start of next group of word or
+  // non-word-non-whitespace chars). The visually param controls
+  // whether, in right-to-left text, direction 1 means to move towards
+  // the next index in the string, or towards the character to the right
+  // of the current position. The resulting position will have a
+  // hitSide=true property if it reached the end of the document.
   function findPosH(doc, pos, dir, unit, visually) {
     var oldPos = pos;
     var origDir = dir;
@@ -8663,7 +8667,12 @@
     }
     function moveOnce(boundToLine) {
       var next;
-      if (visually) {
+      if (unit == "codepoint") {
+        var ch = lineObj.text.charCodeAt(pos.ch + (unit > 0 ? 0 : -1));
+        if (isNaN(ch)) { next = null; }
+        else { next = new Pos(pos.line, Math.max(0, Math.min(lineObj.text.length, pos.ch + dir * (ch >= 0xD800 && ch < 0xDC00 ? 2 : 1))),
+                            -dir); }
+      } else if (visually) {
         next = moveVisually(doc.cm, lineObj, pos, dir);
       } else {
         next = moveLogically(lineObj, pos, dir);
@@ -8679,7 +8688,7 @@
       return true
     }
 
-    if (unit == "char") {
+    if (unit == "char" || unit == "codepoint") {
       moveOnce();
     } else if (unit == "column") {
       moveOnce(true);
@@ -9623,6 +9632,7 @@
   TextareaInput.prototype.readOnlyChanged = function (val) {
     if (!val) { this.reset(); }
     this.textarea.disabled = val == "nocursor";
+    this.textarea.readOnly = !!val;
   };
 
   TextareaInput.prototype.setUneditable = function () {};
@@ -9773,7 +9783,7 @@
 
   addLegacyProps(CodeMirror);
 
-  CodeMirror.version = "5.56.0";
+  CodeMirror.version = "5.58.0";
 
   return CodeMirror;
 
@@ -9796,7 +9806,7 @@
 
   var noOptions = {};
   var nonWS = /[^\s\u00a0]/;
-  var Pos = CodeMirror.Pos;
+  var Pos = CodeMirror.Pos, cmp = CodeMirror.cmpPos;
 
   function firstNonWS(str) {
     var found = str.search(nonWS);
@@ -9909,7 +9919,9 @@
           if (i != end || lastLineHasText)
             self.replaceRange(lead + pad, Pos(i, 0));
       } else {
+        var atCursor = cmp(self.getCursor("to"), to) == 0, empty = !self.somethingSelected()
         self.replaceRange(endString, to);
+        if (atCursor) self.setSelection(empty ? to : self.getCursor("from"), to)
         self.replaceRange(startString, from);
       }
     });
@@ -11659,8 +11671,14 @@
           }
           replaceToken = true;
         }
-        for (var i = 0; i < atValues.length; ++i) if (!prefix || matches(atValues[i], prefix, matchInMiddle))
-          result.push(quote + atValues[i] + quote);
+        function returnHintsFromAtValues(atValues) {
+          if (atValues)
+            for (var i = 0; i < atValues.length; ++i) if (!prefix || matches(atValues[i], prefix, matchInMiddle))
+              result.push(quote + atValues[i] + quote);
+          return returnHints();
+        }
+        if (atValues && atValues.then) return atValues.then(returnHintsFromAtValues);
+        return returnHintsFromAtValues(atValues);
       } else { // An attribute name
         if (token.type == "attribute") {
           prefix = token.string;
@@ -11670,11 +11688,14 @@
           result.push(attr);
       }
     }
-    return {
-      list: result,
-      from: replaceToken ? Pos(cur.line, tagStart == null ? token.start : tagStart) : cur,
-      to: replaceToken ? Pos(cur.line, token.end) : cur
-    };
+    function returnHints() {
+      return {
+        list: result,
+        from: replaceToken ? Pos(cur.line, tagStart == null ? token.start : tagStart) : cur,
+        to: replaceToken ? Pos(cur.line, token.end) : cur
+      };
+    }
+    return returnHints();
   }
 
   CodeMirror.registerHelper("hint", "xml", getHints);
@@ -11767,10 +11788,10 @@
 
   function makeMarker(cm, labels, severity, multiple, tooltips) {
     var marker = document.createElement("div"), inner = marker;
-    marker.className = "CodeMirror-lint-marker-" + severity;
+    marker.className = "CodeMirror-lint-marker CodeMirror-lint-marker-" + severity;
     if (multiple) {
       inner = marker.appendChild(document.createElement("div"));
-      inner.className = "CodeMirror-lint-marker-multiple";
+      inner.className = "CodeMirror-lint-marker CodeMirror-lint-marker-multiple";
     }
 
     if (tooltips != false) CodeMirror.on(inner, "mouseover", function(e) {
@@ -11798,7 +11819,7 @@
     var severity = ann.severity;
     if (!severity) severity = "error";
     var tip = document.createElement("div");
-    tip.className = "CodeMirror-lint-message-" + severity;
+    tip.className = "CodeMirror-lint-message CodeMirror-lint-message-" + severity;
     if (typeof ann.messageHTML != 'undefined') {
       tip.innerHTML = ann.messageHTML;
     } else {
@@ -11867,7 +11888,7 @@
         if (state.hasGutter) tipLabel.appendChild(annotationTooltip(ann));
 
         if (ann.to) state.marked.push(cm.markText(ann.from, ann.to, {
-          className: "CodeMirror-lint-mark-" + severity,
+          className: "CodeMirror-lint-mark CodeMirror-lint-mark-" + severity,
           __annotation: ann
         }));
       }
@@ -13015,7 +13036,7 @@ CodeMirror.overlayMode = function(base, overlay, combine) {
     {name: "Clojure", mime: "text/x-clojure", mode: "clojure", ext: ["clj", "cljc", "cljx"]},
     {name: "ClojureScript", mime: "text/x-clojurescript", mode: "clojure", ext: ["cljs"]},
     {name: "Closure Stylesheets (GSS)", mime: "text/x-gss", mode: "css", ext: ["gss"]},
-    {name: "CMake", mime: "text/x-cmake", mode: "cmake", ext: ["cmake", "cmake.in"], file: /^CMakeLists.txt$/},
+    {name: "CMake", mime: "text/x-cmake", mode: "cmake", ext: ["cmake", "cmake.in"], file: /^CMakeLists\.txt$/},
     {name: "CoffeeScript", mimes: ["application/vnd.coffeescript", "text/coffeescript", "text/x-coffeescript"], mode: "coffeescript", ext: ["coffee"], alias: ["coffee", "coffee-script"]},
     {name: "Common Lisp", mime: "text/x-common-lisp", mode: "commonlisp", ext: ["cl", "lisp", "el"], alias: ["lisp"]},
     {name: "Cypher", mime: "application/x-cypher-query", mode: "cypher", ext: ["cyp", "cypher"]},
@@ -13046,7 +13067,7 @@ CodeMirror.overlayMode = function(base, overlay, combine) {
     {name: "F#", mime: "text/x-fsharp", mode: "mllike", ext: ["fs"], alias: ["fsharp"]},
     {name: "Gas", mime: "text/x-gas", mode: "gas", ext: ["s"]},
     {name: "Gherkin", mime: "text/x-feature", mode: "gherkin", ext: ["feature"]},
-    {name: "GitHub Flavored Markdown", mime: "text/x-gfm", mode: "gfm", file: /^(readme|contributing|history).md$/i},
+    {name: "GitHub Flavored Markdown", mime: "text/x-gfm", mode: "gfm", file: /^(readme|contributing|history)\.md$/i},
     {name: "Go", mime: "text/x-go", mode: "go", ext: ["go"]},
     {name: "Groovy", mime: "text/x-groovy", mode: "groovy", ext: ["groovy", "gradle"], file: /^Jenkinsfile$/},
     {name: "HAML", mime: "text/x-haml", mode: "haml", ext: ["haml"]},
@@ -14594,17 +14615,18 @@ CodeMirror.defineMode("css", function(config, parserConfig) {
     "monochrome", "min-monochrome", "max-monochrome", "resolution",
     "min-resolution", "max-resolution", "scan", "grid", "orientation",
     "device-pixel-ratio", "min-device-pixel-ratio", "max-device-pixel-ratio",
-    "pointer", "any-pointer", "hover", "any-hover"
+    "pointer", "any-pointer", "hover", "any-hover", "prefers-color-scheme"
   ], mediaFeatures = keySet(mediaFeatures_);
 
   var mediaValueKeywords_ = [
     "landscape", "portrait", "none", "coarse", "fine", "on-demand", "hover",
-    "interlace", "progressive"
+    "interlace", "progressive",
+    "dark", "light"
   ], mediaValueKeywords = keySet(mediaValueKeywords_);
 
   var propertyKeywords_ = [
     "align-content", "align-items", "align-self", "alignment-adjust",
-    "alignment-baseline", "anchor-point", "animation", "animation-delay",
+    "alignment-baseline", "all", "anchor-point", "animation", "animation-delay",
     "animation-direction", "animation-duration", "animation-fill-mode",
     "animation-iteration-count", "animation-name", "animation-play-state",
     "animation-timing-function", "appearance", "azimuth", "backdrop-filter",
@@ -14655,7 +14677,9 @@ CodeMirror.defineMode("css", function(config, parserConfig) {
     "list-style-image", "list-style-position", "list-style-type", "margin",
     "margin-bottom", "margin-left", "margin-right", "margin-top", "marks",
     "marquee-direction", "marquee-loop", "marquee-play-count", "marquee-speed",
-    "marquee-style", "max-block-size", "max-height", "max-inline-size",
+    "marquee-style", "mask-clip", "mask-composite", "mask-image", "mask-mode",
+    "mask-origin", "mask-position", "mask-repeat", "mask-size","mask-type",
+    "max-block-size", "max-height", "max-inline-size",
     "max-width", "min-block-size", "min-height", "min-inline-size", "min-width",
     "mix-blend-mode", "move-to", "nav-down", "nav-index", "nav-left", "nav-right",
     "nav-up", "object-fit", "object-position", "offset", "offset-anchor",
@@ -14692,7 +14716,7 @@ CodeMirror.defineMode("css", function(config, parserConfig) {
     "text-height", "text-indent", "text-justify", "text-orientation",
     "text-outline", "text-overflow", "text-rendering", "text-shadow",
     "text-size-adjust", "text-space-collapse", "text-transform",
-    "text-underline-position", "text-wrap", "top", "transform", "transform-origin",
+    "text-underline-position", "text-wrap", "top", "touch-action", "transform", "transform-origin",
     "transform-style", "transition", "transition-delay", "transition-duration",
     "transition-property", "transition-timing-function", "translate",
     "unicode-bidi", "user-select", "vertical-align", "visibility", "voice-balance",
@@ -14704,11 +14728,11 @@ CodeMirror.defineMode("css", function(config, parserConfig) {
     "flood-opacity", "lighting-color", "stop-color", "stop-opacity", "pointer-events",
     "color-interpolation", "color-interpolation-filters",
     "color-rendering", "fill", "fill-opacity", "fill-rule", "image-rendering",
-    "marker", "marker-end", "marker-mid", "marker-start", "shape-rendering", "stroke",
+    "marker", "marker-end", "marker-mid", "marker-start", "paint-order", "shape-rendering", "stroke",
     "stroke-dasharray", "stroke-dashoffset", "stroke-linecap", "stroke-linejoin",
     "stroke-miterlimit", "stroke-opacity", "stroke-width", "text-rendering",
     "baseline-shift", "dominant-baseline", "glyph-orientation-horizontal",
-    "glyph-orientation-vertical", "text-anchor", "writing-mode"
+    "glyph-orientation-vertical", "text-anchor", "writing-mode",
   ], propertyKeywords = keySet(propertyKeywords_);
 
   var nonStandardPropertyKeywords_ = [
@@ -14775,7 +14799,7 @@ CodeMirror.defineMode("css", function(config, parserConfig) {
     "after-white-space", "ahead", "alias", "all", "all-scroll", "alphabetic", "alternate",
     "always", "amharic", "amharic-abegede", "antialiased", "appworkspace",
     "arabic-indic", "armenian", "asterisks", "attr", "auto", "auto-flow", "avoid", "avoid-column", "avoid-page",
-    "avoid-region", "background", "backwards", "baseline", "below", "bidi-override", "binary",
+    "avoid-region", "axis-pan", "background", "backwards", "baseline", "below", "bidi-override", "binary",
     "bengali", "blink", "block", "block-axis", "bold", "bolder", "border", "border-box",
     "both", "bottom", "break", "break-all", "break-word", "bullets", "button", "button-bevel",
     "buttonface", "buttonhighlight", "buttonshadow", "buttontext", "calc", "cambodian",
@@ -14799,7 +14823,7 @@ CodeMirror.defineMode("css", function(config, parserConfig) {
     "ethiopic-halehame-sid-et", "ethiopic-halehame-so-et",
     "ethiopic-halehame-ti-er", "ethiopic-halehame-ti-et", "ethiopic-halehame-tig",
     "ethiopic-numeric", "ew-resize", "exclusion", "expanded", "extends", "extra-condensed",
-    "extra-expanded", "fantasy", "fast", "fill", "fixed", "flat", "flex", "flex-end", "flex-start", "footnotes",
+    "extra-expanded", "fantasy", "fast", "fill", "fill-box", "fixed", "flat", "flex", "flex-end", "flex-start", "footnotes",
     "forwards", "from", "geometricPrecision", "georgian", "graytext", "grid", "groove",
     "gujarati", "gurmukhi", "hand", "hangul", "hangul-consonant", "hard-light", "hebrew",
     "help", "hidden", "hide", "higher", "highlight", "highlighttext",
@@ -14814,7 +14838,7 @@ CodeMirror.defineMode("css", function(config, parserConfig) {
     "line-through", "linear", "linear-gradient", "lines", "list-item", "listbox", "listitem",
     "local", "logical", "loud", "lower", "lower-alpha", "lower-armenian",
     "lower-greek", "lower-hexadecimal", "lower-latin", "lower-norwegian",
-    "lower-roman", "lowercase", "ltr", "luminosity", "malayalam", "match", "matrix", "matrix3d",
+    "lower-roman", "lowercase", "ltr", "luminosity", "malayalam", "manipulation", "match", "matrix", "matrix3d",
     "media-controls-background", "media-current-time-display",
     "media-fullscreen-button", "media-mute-button", "media-play-button",
     "media-return-to-realtime-button", "media-rewind-button",
@@ -14823,13 +14847,13 @@ CodeMirror.defineMode("css", function(config, parserConfig) {
     "media-volume-slider-container", "media-volume-sliderthumb", "medium",
     "menu", "menulist", "menulist-button", "menulist-text",
     "menulist-textfield", "menutext", "message-box", "middle", "min-intrinsic",
-    "mix", "mongolian", "monospace", "move", "multiple", "multiply", "myanmar", "n-resize",
+    "mix", "mongolian", "monospace", "move", "multiple", "multiple_mask_images", "multiply", "myanmar", "n-resize",
     "narrower", "ne-resize", "nesw-resize", "no-close-quote", "no-drop",
     "no-open-quote", "no-repeat", "none", "normal", "not-allowed", "nowrap",
     "ns-resize", "numbers", "numeric", "nw-resize", "nwse-resize", "oblique", "octal", "opacity", "open-quote",
     "optimizeLegibility", "optimizeSpeed", "oriya", "oromo", "outset",
     "outside", "outside-shape", "overlay", "overline", "padding", "padding-box",
-    "painted", "page", "paused", "persian", "perspective", "plus-darker", "plus-lighter",
+    "painted", "page", "paused", "persian", "perspective", "pinch-zoom", "plus-darker", "plus-lighter",
     "pointer", "polygon", "portrait", "pre", "pre-line", "pre-wrap", "preserve-3d",
     "progress", "push-button", "radial-gradient", "radio", "read-only",
     "read-write", "read-write-plaintext-only", "rectangle", "region",
@@ -14847,8 +14871,8 @@ CodeMirror.defineMode("css", function(config, parserConfig) {
     "slider-vertical", "sliderthumb-horizontal", "sliderthumb-vertical", "slow",
     "small", "small-caps", "small-caption", "smaller", "soft-light", "solid", "somali",
     "source-atop", "source-in", "source-out", "source-over", "space", "space-around", "space-between", "space-evenly", "spell-out", "square",
-    "square-button", "start", "static", "status-bar", "stretch", "stroke", "sub",
-    "subpixel-antialiased", "super", "sw-resize", "symbolic", "symbols", "system-ui", "table",
+    "square-button", "start", "static", "status-bar", "stretch", "stroke", "stroke-box", "sub",
+    "subpixel-antialiased", "svg_masks", "super", "sw-resize", "symbolic", "symbols", "system-ui", "table",
     "table-caption", "table-cell", "table-column", "table-column-group",
     "table-footer-group", "table-header-group", "table-row", "table-row-group",
     "tamil",
@@ -14858,10 +14882,10 @@ CodeMirror.defineMode("css", function(config, parserConfig) {
     "tigrinya-er-abegede", "tigrinya-et", "tigrinya-et-abegede", "to", "top",
     "trad-chinese-formal", "trad-chinese-informal", "transform",
     "translate", "translate3d", "translateX", "translateY", "translateZ",
-    "transparent", "ultra-condensed", "ultra-expanded", "underline", "unset", "up",
+    "transparent", "ultra-condensed", "ultra-expanded", "underline", "unidirectional-pan", "unset", "up",
     "upper-alpha", "upper-armenian", "upper-greek", "upper-hexadecimal",
     "upper-latin", "upper-norwegian", "upper-roman", "uppercase", "urdu", "url",
-    "var", "vertical", "vertical-text", "visible", "visibleFill", "visiblePainted",
+    "var", "vertical", "vertical-text", "view-box", "visible", "visibleFill", "visiblePainted",
     "visibleStroke", "visual", "w-resize", "wait", "wave", "wider",
     "window", "windowframe", "windowtext", "words", "wrap", "wrap-reverse", "x-large", "x-small", "xor",
     "xx-large", "xx-small"
@@ -15450,7 +15474,7 @@ CodeMirror.defineMode("javascript", function(config, parserConfig) {
       if (ch != ">" || !state.lexical || state.lexical.type != ">") {
         if (stream.eat("=")) {
           if (ch == "!" || ch == "=") stream.eat("=")
-        } else if (/[<>*+\-]/.test(ch)) {
+        } else if (/[<>*+\-|&?]/.test(ch)) {
           stream.eat(ch)
           if (ch == ">") stream.eat(ch)
         }
